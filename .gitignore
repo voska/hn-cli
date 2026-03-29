@@ -1,0 +1,4 @@
+bin/
+.tools/
+*.exe
+.DS_Store
