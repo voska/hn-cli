@@ -34,3 +34,20 @@ changelog:
       - "^chore:"
       - "^ci:"
       - "^test:"
+
+brews:
+  - name: hn
+    homepage: "https://github.com/voska/hn-cli"
+    description: "Agent-friendly Hacker News CLI via the Algolia API"
+    license: "MIT"
+    repository:
+      owner: voska
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: voska-bot
+      email: bot@voska.dev
+    install: |
+      bin.install "hn"
+    test: |
+      system "#{bin}/hn", "version"
