@@ -157,6 +157,10 @@ func countComments(children []api.Item) int {
 	return count
 }
 
+// timeAgo parses an HN timestamp and returns a human-readable relative time.
+// The Algolia API returns RFC 3339 from search endpoints but uses a
+// millisecond-precision variant (2006-01-02T15:04:05.000Z) from item endpoints,
+// so both formats must be attempted.
 func timeAgo(created string) string {
 	t, err := time.Parse(time.RFC3339, created)
 	if err != nil {

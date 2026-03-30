@@ -1,4 +1,9 @@
+hn
 bin/
-.tools/
+dist/
 *.exe
+*.test
+coverage.out
+*.coverprofile
+.tools/
 .DS_Store

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,18 +17,35 @@ var (
 	appDate    = ""
 
 	jsonOutput bool
+	hnClient   *api.Client
 )
+
+// ErrNoResults signals an empty result set (exit code 3).
+type ErrNoResults struct{}
+
+func (e ErrNoResults) Error() string { return "no results" }
+
+// ErrNotFound signals a missing resource (exit code 5).
+type ErrNotFound struct{ msg string }
+
+func (e ErrNotFound) Error() string { return e.msg }
+
+// ErrRetryable signals a transient failure (exit code 8).
+type ErrRetryable struct{ msg string }
+
+func (e ErrRetryable) Error() string { return e.msg }
 
 func SetVersion(v, c, d string) {
 	appVersion = v
 	appCommit = c
 	appDate = d
+	rootCmd.Version = v
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "hn",
-	Short: "Hacker News CLI - search, read, and browse HN",
-	Long:  "Agent-friendly CLI for Hacker News via the Algolia API.",
+	Use:           "hn",
+	Short:         "Hacker News CLI - search, read, and browse HN",
+	Long:          "Agent-friendly CLI for Hacker News via the Algolia API.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
@@ -43,8 +61,30 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
+// Execute runs the root command and returns any error.
 func Execute() error {
 	return rootCmd.Execute()
+}
+
+// ExitCode maps sentinel errors to process exit codes.
+func ExitCode(err error) int {
+	switch err.(type) {
+	case ErrNoResults:
+		return 3
+	case ErrNotFound:
+		return 5
+	case ErrRetryable:
+		return 8
+	default:
+		return 1
+	}
+}
+
+func client() *api.Client {
+	if hnClient == nil {
+		hnClient = api.DefaultClient()
+	}
+	return hnClient
 }
 
 // --- search ---
@@ -63,7 +103,7 @@ var searchCmd = &cobra.Command{
 	Short:   "Search HN stories or comments",
 	Args:    cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		query := args[0]
+		query := strings.Join(args, " ")
 
 		tags := "story"
 		if searchComments {
@@ -86,14 +126,13 @@ var searchCmd = &cobra.Command{
 			opts.AfterTime = &t
 		}
 
-		result, err := api.Search(opts)
+		result, err := client().Search(opts)
 		if err != nil {
 			return err
 		}
 
 		if len(result.Hits) == 0 {
-			fmt.Fprintln(os.Stderr, "No results.")
-			os.Exit(3)
+			return ErrNoResults{}
 		}
 
 		if jsonOutput {
@@ -121,7 +160,7 @@ var frontCmd = &cobra.Command{
 	Aliases: []string{"f"},
 	Short:   "Current front page stories",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		result, err := api.Search(api.SearchOptions{
+		result, err := client().Search(api.SearchOptions{
 			Tags:       "front_page",
 			NumResults: frontNum,
 		})
@@ -151,10 +190,9 @@ var readCmd = &cobra.Command{
 	Short:   "Read a story with comments",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		item, err := api.GetItem(args[0])
+		item, err := client().GetItem(args[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(5)
+			return ErrNotFound{msg: err.Error()}
 		}
 
 		if jsonOutput {
@@ -177,10 +215,9 @@ var userCmd = &cobra.Command{
 	Short:   "User profile and stats",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		user, err := api.GetUser(args[0])
+		user, err := client().GetUser(args[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(5)
+			return ErrNotFound{msg: err.Error()}
 		}
 
 		if jsonOutput {
@@ -197,20 +234,19 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "API health check",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		latency, err := api.HealthCheck()
+		latency, err := client().HealthCheck()
 		if err != nil {
 			if jsonOutput {
 				return output.JSON(map[string]any{"status": "error", "error": err.Error()})
 			}
-			fmt.Fprintf(os.Stderr, "HN API: DOWN (%v)\n", err)
-			os.Exit(8)
+			return ErrRetryable{msg: fmt.Sprintf("HN API: DOWN (%v)", err)}
 		}
 
 		if jsonOutput {
 			return output.JSON(map[string]any{
 				"status":     "ok",
 				"latency_ms": latency.Milliseconds(),
-				"api_url":    "https://hn.algolia.com/api/v1",
+				"api_url":    api.BaseURL,
 			})
 		}
 		fmt.Fprintf(os.Stdout, "HN API: OK (%dms)\n", latency.Milliseconds())

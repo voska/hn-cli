@@ -11,18 +11,36 @@ import (
 	"time"
 )
 
-const baseURL = "https://hn.algolia.com/api/v1"
+// BaseURL is the default HN Algolia API endpoint.
+const BaseURL = "https://hn.algolia.com/api/v1"
 
-var httpClient = &http.Client{Timeout: 15 * time.Second}
+// Client wraps an HTTP client and base URL for the HN Algolia API.
+type Client struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+// NewClient returns a Client configured with the given base URL and HTTP client.
+func NewClient(baseURL string, httpClient *http.Client) *Client {
+	return &Client{
+		baseURL:    baseURL,
+		httpClient: httpClient,
+	}
+}
+
+// DefaultClient returns a Client using the production API and a 15s timeout.
+func DefaultClient() *Client {
+	return NewClient(BaseURL, &http.Client{Timeout: 15 * time.Second})
+}
 
 // SearchResult represents the Algolia search response.
 type SearchResult struct {
-	Hits      []Hit  `json:"hits"`
-	NbHits    int    `json:"nbHits"`
-	NbPages   int    `json:"nbPages"`
-	Page      int    `json:"page"`
-	Query     string `json:"query"`
-	HitsPerPage int  `json:"hitsPerPage"`
+	Hits        []Hit  `json:"hits"`
+	NbHits      int    `json:"nbHits"`
+	NbPages     int    `json:"nbPages"`
+	Page        int    `json:"page"`
+	Query       string `json:"query"`
+	HitsPerPage int    `json:"hitsPerPage"`
 }
 
 // Hit represents a single search result.
@@ -44,17 +62,17 @@ type Hit struct {
 
 // Item represents a story or comment from the items API.
 type Item struct {
-	ID        int     `json:"id"`
-	Author    string  `json:"author"`
-	Title     string  `json:"title"`
-	URL       string  `json:"url"`
-	Text      string  `json:"text"`
-	Points    *int    `json:"points"`
-	Type      string  `json:"type"`
-	CreatedAt string  `json:"created_at"`
-	ParentID  *int    `json:"parent_id"`
-	StoryID   int     `json:"story_id"`
-	Children  []Item  `json:"children"`
+	ID        int    `json:"id"`
+	Author    string `json:"author"`
+	Title     string `json:"title"`
+	URL       string `json:"url"`
+	Text      string `json:"text"`
+	Points    *int   `json:"points"`
+	Type      string `json:"type"`
+	CreatedAt string `json:"created_at"`
+	ParentID  *int   `json:"parent_id"`
+	StoryID   int    `json:"story_id"`
+	Children  []Item `json:"children"`
 }
 
 // User represents an HN user profile.
@@ -67,15 +85,15 @@ type User struct {
 // SearchOptions configures a search request.
 type SearchOptions struct {
 	Query      string
-	Tags       string // e.g. "story", "comment", "front_page"
+	Tags       string
 	SortByDate bool
 	NumResults int
 	AfterTime  *time.Time
 	MinPoints  int
 }
 
-// Search queries the HN Algolia search API.
-func Search(opts SearchOptions) (*SearchResult, error) {
+// BuildURL constructs the full API URL for the given search options.
+func (c *Client) BuildURL(opts SearchOptions) string {
 	endpoint := "/search"
 	if opts.SortByDate {
 		endpoint = "/search_by_date"
@@ -103,8 +121,13 @@ func Search(opts SearchOptions) (*SearchResult, error) {
 		params.Set("numericFilters", strings.Join(numericFilters, ","))
 	}
 
-	reqURL := fmt.Sprintf("%s%s?%s", baseURL, endpoint, params.Encode())
-	resp, err := httpClient.Get(reqURL)
+	return fmt.Sprintf("%s%s?%s", c.baseURL, endpoint, params.Encode())
+}
+
+// Search queries the HN Algolia search API.
+func (c *Client) Search(opts SearchOptions) (*SearchResult, error) {
+	reqURL := c.BuildURL(opts)
+	resp, err := c.httpClient.Get(reqURL)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -122,9 +145,9 @@ func Search(opts SearchOptions) (*SearchResult, error) {
 }
 
 // GetItem fetches a single item (story/comment) with its children.
-func GetItem(id string) (*Item, error) {
-	reqURL := fmt.Sprintf("%s/items/%s", baseURL, id)
-	resp, err := httpClient.Get(reqURL)
+func (c *Client) GetItem(id string) (*Item, error) {
+	reqURL := fmt.Sprintf("%s/items/%s", c.baseURL, id)
+	resp, err := c.httpClient.Get(reqURL)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -145,9 +168,9 @@ func GetItem(id string) (*Item, error) {
 }
 
 // GetUser fetches a user profile.
-func GetUser(username string) (*User, error) {
-	reqURL := fmt.Sprintf("%s/users/%s", baseURL, url.PathEscape(username))
-	resp, err := httpClient.Get(reqURL)
+func (c *Client) GetUser(username string) (*User, error) {
+	reqURL := fmt.Sprintf("%s/users/%s", c.baseURL, url.PathEscape(username))
+	resp, err := c.httpClient.Get(reqURL)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -168,9 +191,9 @@ func GetUser(username string) (*User, error) {
 }
 
 // HealthCheck pings the API and returns latency.
-func HealthCheck() (time.Duration, error) {
+func (c *Client) HealthCheck() (time.Duration, error) {
 	start := time.Now()
-	resp, err := httpClient.Get(baseURL + "/search?query=test&hitsPerPage=0")
+	resp, err := c.httpClient.Get(c.baseURL + "/search?query=test&hitsPerPage=0")
 	if err != nil {
 		return 0, fmt.Errorf("api unreachable: %w", err)
 	}
