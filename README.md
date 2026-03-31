@@ -1,97 +1,133 @@
-# hn
+# hn — Hacker News CLI
 
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/voska/hn-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/voska/hn-cli/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/github/go-mod/go-version/voska/hn-cli)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Agent-friendly CLI for [Hacker News](https://news.ycombinator.com) via the [Algolia API](https://hn.algolia.com). Compact plaintext output by default, structured JSON with `--json`. No authentication required.
+Agent-friendly CLI for [Hacker News](https://news.ycombinator.com) via the [Algolia API](https://hn.algolia.com). Data goes to stdout (parseable), hints/progress to stderr. No authentication required.
 
-## Installation
+```bash
+$ hn search "local LLMs" -n 3
+5632 results:
+1. [2127pts 963c] Running Local LLMs Is a Waste of Time  @dang  3mo ago
+   https://example.com/local-llms
+   HN: https://news.ycombinator.com/item?id=43163011
+2. [891pts 412c] Ollama: Run LLMs Locally  @thunderbong  8mo ago
+   https://ollama.ai
+   HN: https://news.ycombinator.com/item?id=42591244
+3. [654pts 287c] How I Run LLMs on a Raspberry Pi  @tosh  1y ago
+   https://example.com/rpi-llms
+   HN: https://news.ycombinator.com/item?id=41023547
+
+$ hn front -n 3
+1. [312pts 142c] Show HN: I built a CLI for everything  @pg  2h ago
+   https://example.com/cli
+2. [198pts  87c] Why SQLite Is So Great for the Edge  @dang  4h ago
+   https://example.com/sqlite
+3. [145pts  53c] The death of microservices  @mfiguiere  6h ago
+   https://example.com/microservices
+
+$ hn read 43163011 --json | jq '.comments | length'
+963
+```
+
+Run `hn --help` for the full command tree.
+
+## Install
+
+**Homebrew** (macOS / Linux):
+
+```bash
+brew install voska/tap/hn
+```
+
+**Go**:
 
 ```bash
 go install github.com/voska/hn-cli/cmd/hn@latest
 ```
 
-Or build from source:
+**Binary**: download from [Releases](https://github.com/voska/hn-cli/releases).
+
+## Quick Start
 
 ```bash
-git clone https://github.com/voska/hn-cli.git
-cd hn-cli
-make build    # outputs to bin/hn
-make install  # copies to $GOPATH/bin
+# Search stories
+hn search "distributed systems" --min-points 100
+
+# Search comments
+hn search "Go vs Rust" --comments
+
+# Recent stories sorted by date
+hn search "WASM" --sort date --after 2026-01-01
+
+# Current front page
+hn front
+
+# Read a story with comments (3 levels deep)
+hn read 43163011
+
+# Read with all comments expanded
+hn read 43163011 --expand
+
+# User profile
+hn user pg
+
+# API health check
+hn status
 ```
 
-## Usage
+## Agent Skill
 
-### Search
+Install as a [Claude Code skill](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/skills) for AI-assisted HN research:
 
 ```bash
-hn search "local LLMs"                    # Search stories
-hn search "local LLMs" --comments         # Search comments
-hn search "local LLMs" --sort date        # Sort by date
-hn search "local LLMs" -n 5              # Limit results
-hn search "local LLMs" --after 2026-01-01 # Date filter
-hn search "local LLMs" --min-points 100   # Minimum points
+npx skills add -g voska/hn-cli
 ```
-
-### Front Page
-
-```bash
-hn front          # Current front page
-hn front -n 10    # Fewer stories
-```
-
-### Read
-
-```bash
-hn read 12345678            # Story + top comments (3 levels)
-hn read 12345678 --expand   # All comments expanded
-```
-
-### User
-
-```bash
-hn user pg        # Profile, karma, about
-```
-
-### Other
-
-```bash
-hn status         # API health check with latency
-hn version        # Version, commit, build date
-hn --version      # Short version
-```
-
-## Output
-
-Compact plaintext to stdout, errors to stderr. All commands support `--json` for structured output.
-
-```
-$ hn search "Claude Code" -n 2
-5632 results:
-1. [2127pts 963c] Claude 3.7 Sonnet and Claude Code  @bakugo  1y ago
-   https://www.anthropic.com/news/claude-3-7-sonnet
-   HN: https://news.ycombinator.com/item?id=43163011
-2. [1298pts 565c] Cowork: Claude Code for the rest of your work  @adocomplete  2mo ago
-   https://claude.com/blog/cowork-research-preview
-   HN: https://news.ycombinator.com/item?id=46593022
-```
-
-Aliases: `s` (search), `f` (front), `r` (read), `u` (user).
-
-## Exit Codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | General error |
-| 3 | Empty result set |
-| 5 | Not found (invalid ID/username) |
-| 8 | Retryable error (network/timeout) |
 
 ## API
 
 Uses the [HN Algolia API](https://hn.algolia.com/api/v1/) -- free, public, no authentication or API keys required.
 
+## Output Modes
+
+| Flag | Description |
+|------|-------------|
+| (default) | Compact plaintext to stdout |
+| `--json` | Structured JSON to stdout |
+
+## Commands
+
+| Command | Alias | Description |
+|---------|-------|-------------|
+| `search <query>` | `s` | Search stories or comments |
+| `front` | `f` | Current front page stories |
+| `read <id>` | `r` | Story with threaded comments |
+| `user <username>` | `u` | User profile and karma |
+| `status` | | API health check with latency |
+| `version` | | Version, commit, build date |
+
+All commands support `--json`.
+
+## Exit Codes
+
+| Code | Name | Meaning |
+|------|------|---------|
+| 0 | success | Operation completed |
+| 1 | error | General error |
+| 3 | empty | No results found |
+| 5 | not_found | Invalid ID or username |
+| 8 | retryable | Transient error, safe to retry |
+
+## Development
+
+```bash
+make build    # Build to bin/hn
+make test     # Run tests with race detector
+make lint     # Run linter
+make fmt      # Format code
+```
+
 ## License
 
-[MIT](LICENSE)
+MIT
