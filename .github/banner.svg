@@ -3,13 +3,13 @@
   <text x="100" y="120" font-family="ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace" font-size="72" font-weight="700" fill="#ff6600">hn</text>
   <text x="210" y="120" font-family="ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace" font-size="72" font-weight="300" fill="#a9b1d6">cli</text>
   <text x="100" y="158" font-family="ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace" font-size="18" fill="#565f89">Hacker News in your terminal</text>
-  <g transform="translate(560, 40)" fill="#ff6600" opacity="0.15">
-    <text font-family="ui-monospace, monospace" font-size="14" fill="#565f89">
-      <tspan x="0" dy="0">$ hn search "LLMs"</tspan>
-      <tspan x="0" dy="20">$ hn front -n 10</tspan>
-      <tspan x="0" dy="20">$ hn read 43163011</tspan>
-      <tspan x="0" dy="20">$ hn user pg --json</tspan>
-      <tspan x="0" dy="20">$ hn status</tspan>
+  <g transform="translate(560, 50)">
+    <text font-family="ui-monospace, monospace" font-size="14" fill="#7aa2f7" opacity="0.6">
+      <tspan x="0" dy="0"><tspan fill="#9ece6a" opacity="0.7">$</tspan> hn search "LLMs"</tspan>
+      <tspan x="0" dy="22"><tspan fill="#9ece6a" opacity="0.7">$</tspan> hn front -n 10</tspan>
+      <tspan x="0" dy="22"><tspan fill="#9ece6a" opacity="0.7">$</tspan> hn read 43163011</tspan>
+      <tspan x="0" dy="22"><tspan fill="#9ece6a" opacity="0.7">$</tspan> hn user pg --json</tspan>
+      <tspan x="0" dy="22"><tspan fill="#9ece6a" opacity="0.7">$</tspan> hn status</tspan>
     </text>
   </g>
 </svg>

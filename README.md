@@ -16,6 +16,10 @@ Agent-friendly CLI for [Hacker News](https://news.ycombinator.com) via the [Algo
 - **Zero config** — no API keys, no auth, no rate limits
 - **Single binary** — install via Homebrew, Scoop, or `go install`
 
+<p align="center">
+  <img src="demo.gif" alt="hn cli demo" width="700" />
+</p>
+
 ```bash
 $ hn search "local LLMs" -n 3
 5632 results:
