@@ -40,6 +40,7 @@ brews:
     homepage: "https://github.com/voska/hn-cli"
     description: "Agent-friendly Hacker News CLI via the Algolia API"
     license: "MIT"
+    directory: Formula
     repository:
       owner: voska
       name: homebrew-tap
