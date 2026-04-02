@@ -1,10 +1,20 @@
-# hn — Hacker News CLI
+<p align="center">
+  <img src=".github/banner.svg" alt="hn cli" width="600" />
+</p>
 
-[![CI](https://github.com/voska/hn-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/voska/hn-cli/actions/workflows/ci.yml)
-[![Go](https://img.shields.io/github/go-mod/go-version/voska/hn-cli)](https://go.dev/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/voska/hn-cli/actions/workflows/ci.yml"><img src="https://github.com/voska/hn-cli/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/voska/hn-cli/releases"><img src="https://img.shields.io/github/v/release/voska/hn-cli" alt="Release" /></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/github/go-mod/go-version/voska/hn-cli" alt="Go" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
+</p>
 
 Agent-friendly CLI for [Hacker News](https://news.ycombinator.com) via the [Algolia API](https://hn.algolia.com). Data goes to stdout (parseable), hints/progress to stderr. No authentication required.
+
+- **Fast** — direct Algolia API, no scraping or HTML parsing
+- **Agent-friendly** — `--json` on every command, structured exit codes, stderr-only progress
+- **Zero config** — no API keys, no auth, no rate limits
+- **Single binary** — install via Homebrew, Scoop, or `go install`
 
 ```bash
 $ hn search "local LLMs" -n 3
@@ -41,6 +51,16 @@ Run `hn --help` for the full command tree.
 brew install voska/tap/hn
 ```
 
+**Scoop** (Windows):
+
+```bash
+scoop bucket add voska https://github.com/voska/scoop-bucket
+scoop install hn
+```
+
+<details>
+<summary>Other install methods</summary>
+
 **Go**:
 
 ```bash
@@ -48,6 +68,8 @@ go install github.com/voska/hn-cli/cmd/hn@latest
 ```
 
 **Binary**: download from [Releases](https://github.com/voska/hn-cli/releases).
+
+</details>
 
 ## Quick Start
 
