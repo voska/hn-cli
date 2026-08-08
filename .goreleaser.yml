@@ -35,14 +35,12 @@ changelog:
       - "^ci:"
       - "^test:"
 
-homebrew_casks:
+brews:
   - name: hn
     homepage: "https://github.com/voska/hn-cli"
     description: "Agent-friendly Hacker News CLI via the Algolia API"
     license: "MIT"
-    directory: Casks
-    url:
-      verified: github.com/voska/hn-cli
+    directory: Formula
     repository:
       owner: voska
       name: homebrew-tap
@@ -50,12 +48,10 @@ homebrew_casks:
     commit_author:
       name: voska-bot
       email: bot@voska.dev
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/hn"]
-          end
+    install: |
+      bin.install "hn"
+    test: |
+      system "#{bin}/hn", "version"
 
 scoops:
   - name: hn
