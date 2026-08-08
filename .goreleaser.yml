@@ -17,11 +17,11 @@ builds:
       - arm64
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
 checksum:
   name_template: checksums.txt
@@ -35,12 +35,14 @@ changelog:
       - "^ci:"
       - "^test:"
 
-brews:
+homebrew_casks:
   - name: hn
     homepage: "https://github.com/voska/hn-cli"
     description: "Agent-friendly Hacker News CLI via the Algolia API"
     license: "MIT"
-    directory: Formula
+    directory: Casks
+    url:
+      verified: github.com/voska/hn-cli
     repository:
       owner: voska
       name: homebrew-tap
@@ -48,10 +50,12 @@ brews:
     commit_author:
       name: voska-bot
       email: bot@voska.dev
-    install: |
-      bin.install "hn"
-    test: |
-      system "#{bin}/hn", "version"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/hn"]
+          end
 
 scoops:
   - name: hn
