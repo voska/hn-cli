@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `hn front --feed` reads the `top`, `new`, `best`, `ask`, `show` and `job` lists.
+- `hn read` flags `-n`, `--replies`, `--depth` and `--max-chars`, and comment IDs
+  in its output. `hn read COMMENT_ID` opens a collapsed thread.
+
+### Changed
+- `hn read` caps its output by default, and says what it leaves out. `--expand`
+  shows everything.
+
 ### Fixed
+- `hn front` lists stories in site rank order. Algolia's `front_page` tag has
+  the right stories in another order.
+- `hn read` lists comments in site rank order, not oldest first.
 - Exit codes now match the docs. Network failures, rate limits and server
   errors exit 8, missing items and users exit 5, and an empty `hn front` exits 3.
 - `hn status --json` exits 8 when the API is down.

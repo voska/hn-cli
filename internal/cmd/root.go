@@ -144,17 +144,17 @@ func init() {
 
 // --- front ---
 
-var frontNum int
+var (
+	frontNum  int
+	frontFeed string
+)
 
 var frontCmd = &cobra.Command{
 	Use:     "front",
 	Aliases: []string{"f"},
-	Short:   "Current front page stories",
+	Short:   "Stories in site rank order",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		result, err := client().Search(api.SearchOptions{
-			Tags:       "front_page",
-			NumResults: frontNum,
-		})
+		result, err := client().Feed(frontFeed, frontNum)
 		if err != nil {
 			return err
 		}
@@ -166,40 +166,65 @@ var frontCmd = &cobra.Command{
 		if jsonOutput {
 			return output.JSON(result)
 		}
-		output.FormatFrontPage(os.Stdout, result)
+		output.FormatFeed(os.Stdout, result, frontFeed)
 		return nil
 	},
 }
 
 func init() {
 	frontCmd.Flags().IntVarP(&frontNum, "num", "n", 30, "Number of stories")
+	frontCmd.Flags().StringVar(&frontFeed, "feed", "top", "Feed: "+strings.Join(api.FeedNames(), ", "))
 }
 
 // --- read ---
 
-var readExpand bool
+var (
+	readNum      int
+	readReplies  int
+	readDepth    int
+	readMaxChars int
+	readExpand   bool
+)
 
 var readCmd = &cobra.Command{
 	Use:     "read ID",
 	Aliases: []string{"r"},
-	Short:   "Read a story with comments",
-	Args:    cobra.ExactArgs(1),
+	Short:   "Read a story or comment with its top comments",
+	Long: `Read a story or comment with its comments in site rank order. The output is
+capped to fit an agent's context, and names what it leaves out. Comment IDs
+open a collapsed thread: hn read COMMENT_ID.
+
+--json returns the whole tree in rank order and ignores the caps.`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		item, err := client().GetItem(args[0])
 		if err != nil {
 			return err
 		}
 
+		opts := output.ReadOptions{Num: readNum, Replies: readReplies, Depth: readDepth, MaxChars: readMaxChars}
+		if readExpand {
+			opts = output.ReadOptions{Replies: -1, Depth: -1}
+		}
+
+		if err := client().RankComments(item, opts.Num); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: comments are oldest first: %v\n", err)
+		}
+
 		if jsonOutput {
 			return output.JSON(item)
 		}
-		output.FormatItem(os.Stdout, item, readExpand)
+		output.FormatItem(os.Stdout, item, opts)
 		return nil
 	},
 }
 
 func init() {
-	readCmd.Flags().BoolVar(&readExpand, "expand", false, "Show all comments expanded")
+	readCmd.Flags().IntVarP(&readNum, "num", "n", 20, "Top comments to show, 0 for all")
+	readCmd.Flags().IntVar(&readReplies, "replies", 3, "Replies to show per comment")
+	readCmd.Flags().IntVar(&readDepth, "depth", 1, "Levels of replies to show")
+	readCmd.Flags().IntVar(&readMaxChars, "max-chars", 800, "Characters per comment, 0 for no cap")
+	readCmd.Flags().BoolVar(&readExpand, "expand", false, "Show every comment in full")
 }
 
 // --- user ---
