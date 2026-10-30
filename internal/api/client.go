@@ -6,6 +6,7 @@ import (
 	"html"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -206,9 +207,14 @@ func (c *Client) HealthCheck() (time.Duration, error) {
 	return elapsed, nil
 }
 
-// CleanHTML strips HTML entities and basic tags from HN text.
+// linkTag matches HN's auto-linked URLs, which repeat the URL as a shortened
+// link text.
+var linkTag = regexp.MustCompile(`<a href="([^"]*)"[^>]*>.*?</a>`)
+
+// CleanHTML strips HTML entities and basic tags from HN text. Entities are
+// decoded last so that escaped markup in a comment stays literal.
 func CleanHTML(s string) string {
-	s = html.UnescapeString(s)
+	s = linkTag.ReplaceAllString(s, "$1")
 	s = strings.ReplaceAll(s, "<p>", "\n")
 	s = strings.ReplaceAll(s, "</p>", "")
 	s = strings.ReplaceAll(s, "<i>", "")
@@ -219,8 +225,5 @@ func CleanHTML(s string) string {
 	s = strings.ReplaceAll(s, "</code></pre>", "\n```\n")
 	s = strings.ReplaceAll(s, "<code>", "`")
 	s = strings.ReplaceAll(s, "</code>", "`")
-	s = strings.ReplaceAll(s, "<a href=\"", "")
-	s = strings.ReplaceAll(s, "\" rel=\"nofollow\">", " ")
-	s = strings.ReplaceAll(s, "</a>", "")
-	return strings.TrimSpace(s)
+	return strings.TrimSpace(html.UnescapeString(s))
 }

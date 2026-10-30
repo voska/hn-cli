@@ -147,6 +147,12 @@ func TestCleanHTML(t *testing.T) {
 		{"inline code", "use <code>go run</code> here", "use `go run` here"},
 		{"html entities", "this &amp; that &lt; those", "this & that < those"},
 		{"empty string", "", ""},
+		{"escaped markup stays", "use &lt;p&gt; and &lt;code&gt;", "use <p> and <code>"},
+		{
+			"auto-linked url",
+			`see <a href="https:&#x2F;&#x2F;example.com&#x2F;a&#x2F;very&#x2F;long" rel="nofollow">https:&#x2F;&#x2F;example.com&#x2F;a&#x2F;ve...</a> now`,
+			"see https://example.com/a/very/long now",
+		},
 	}
 
 	for _, tt := range tests {
