@@ -93,40 +93,67 @@ var (
 	searchComments bool
 	searchSort     string
 	searchNum      int
+	searchPage     int
 	searchAfter    string
+	searchBefore   string
 	searchMinPts   int
+	searchTag      string
+	searchBy       string
+	searchURL      bool
 )
 
+// parseDate reads a YYYY-MM-DD flag value, or returns nil when it is unset.
+func parseDate(value string) (*time.Time, error) {
+	if value == "" {
+		return nil, nil
+	}
+	t, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return nil, fmt.Errorf("invalid date %q (use YYYY-MM-DD)", value)
+	}
+	return &t, nil
+}
+
 var searchCmd = &cobra.Command{
-	Use:     "search QUERY",
+	Use:     "search [QUERY]",
 	Aliases: []string{"s"},
 	Short:   "Search HN stories or comments",
-	Args:    cobra.MinimumNArgs(1),
+	Long: `Search HN stories or comments. The query is optional, so filters alone can
+browse: hn search --tag show_hn --min-points 100 --sort date`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		query := strings.Join(args, " ")
 
-		tags := "story"
+		tags := []string{"story"}
 		if searchComments {
-			tags = "comment"
+			tags = []string{"comment"}
+		}
+		if searchTag != "" {
+			tags = append(tags, searchTag)
+		}
+		if searchBy != "" {
+			tags = append(tags, "author_"+searchBy)
 		}
 
-		opts := api.SearchOptions{
+		after, err := parseDate(searchAfter)
+		if err != nil {
+			return err
+		}
+		before, err := parseDate(searchBefore)
+		if err != nil {
+			return err
+		}
+
+		result, err := client().Search(api.SearchOptions{
 			Query:      query,
-			Tags:       tags,
+			Tags:       strings.Join(tags, ","),
 			SortByDate: searchSort == "date",
 			NumResults: searchNum,
+			Page:       searchPage,
+			URLOnly:    searchURL,
+			AfterTime:  after,
+			BeforeTime: before,
 			MinPoints:  searchMinPts,
-		}
-
-		if searchAfter != "" {
-			t, err := time.Parse("2006-01-02", searchAfter)
-			if err != nil {
-				return fmt.Errorf("invalid date %q (use YYYY-MM-DD)", searchAfter)
-			}
-			opts.AfterTime = &t
-		}
-
-		result, err := client().Search(opts)
+		})
 		if err != nil {
 			return err
 		}
@@ -147,7 +174,12 @@ func init() {
 	searchCmd.Flags().BoolVar(&searchComments, "comments", false, "Search comments instead of stories")
 	searchCmd.Flags().StringVar(&searchSort, "sort", "relevance", "Sort order: relevance or date")
 	searchCmd.Flags().IntVarP(&searchNum, "num", "n", 20, "Number of results")
+	searchCmd.Flags().IntVar(&searchPage, "page", 0, "Result page, starting at 0")
 	searchCmd.Flags().StringVar(&searchAfter, "after", "", "Only results after date (YYYY-MM-DD)")
+	searchCmd.Flags().StringVar(&searchBefore, "before", "", "Only results before date (YYYY-MM-DD)")
+	searchCmd.Flags().StringVar(&searchTag, "tag", "", "Only this Algolia tag: show_hn, ask_hn, front_page")
+	searchCmd.Flags().StringVar(&searchBy, "by", "", "Only this author")
+	searchCmd.Flags().BoolVar(&searchURL, "url", false, "Match the query against story URLs only")
 	searchCmd.Flags().IntVar(&searchMinPts, "min-points", 0, "Minimum points filter")
 }
 

@@ -88,7 +88,10 @@ type SearchOptions struct {
 	Tags       string
 	SortByDate bool
 	NumResults int
+	Page       int
+	URLOnly    bool
 	AfterTime  *time.Time
+	BeforeTime *time.Time
 	MinPoints  int
 }
 
@@ -110,12 +113,22 @@ func (c *Client) BuildURL(opts SearchOptions) string {
 		params.Set("hitsPerPage", strconv.Itoa(opts.NumResults))
 	}
 
+	if opts.Page > 0 {
+		params.Set("page", strconv.Itoa(opts.Page))
+	}
+	if opts.URLOnly {
+		params.Set("restrictSearchableAttributes", "url")
+	}
+
 	var numericFilters []string
 	if opts.AfterTime != nil {
 		numericFilters = append(numericFilters, fmt.Sprintf("created_at_i>%d", opts.AfterTime.Unix()))
 	}
+	if opts.BeforeTime != nil {
+		numericFilters = append(numericFilters, fmt.Sprintf("created_at_i<%d", opts.BeforeTime.Unix()))
+	}
 	if opts.MinPoints > 0 {
-		numericFilters = append(numericFilters, fmt.Sprintf("points>%d", opts.MinPoints))
+		numericFilters = append(numericFilters, fmt.Sprintf("points>=%d", opts.MinPoints))
 	}
 	if len(numericFilters) > 0 {
 		params.Set("numericFilters", strings.Join(numericFilters, ","))

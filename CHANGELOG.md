@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `hn search` flags `--tag`, `--by`, `--before`, `--url` and `--page`. The query
+  is now optional, so filters alone can browse.
+
+### Fixed
+- `--min-points N` includes stories with exactly N points.
+
 ## [0.2.1] — 2026-08-08
 
 ### Fixed
