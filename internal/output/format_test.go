@@ -88,7 +88,8 @@ func TestTimeAgo(t *testing.T) {
 		{"just now", time.Now().Add(-10 * time.Second).Format(time.RFC3339), "just now"},
 		{"minutes ago", time.Now().Add(-30 * time.Minute).Format(time.RFC3339), "30m ago"},
 		{"hours ago", time.Now().Add(-5 * time.Hour).Format(time.RFC3339), "5h ago"},
-		{"days ago", time.Now().Add(-3 * 24 * time.Hour).Format(time.RFC3339), "3d ago"},
+		{"older shows the date", "2024-03-05T12:00:00Z", "2024-03-05"},
+		{"older in millisecond format", "2024-03-05T12:00:00.000Z", "2024-03-05"},
 		{"invalid returns raw", "not-a-date", "not-a-date"},
 		{"millisecond format", time.Now().UTC().Add(-1 * time.Hour).Format("2006-01-02T15:04:05.000Z"), "1h ago"},
 	}

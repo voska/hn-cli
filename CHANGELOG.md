@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Anything older than a day shows its date, not "3mo ago".
+
+### Fixed
+- Links appear once, with their full URL. They printed twice, the second time
+  shortened.
+- Escaped markup in comments stays literal: `&lt;p&gt;` prints as `<p>`, not a
+  line break.
+
 ## [0.2.1] — 2026-08-08
 
 ### Fixed
