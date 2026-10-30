@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -24,16 +25,6 @@ var (
 type ErrNoResults struct{}
 
 func (e ErrNoResults) Error() string { return "no results" }
-
-// ErrNotFound signals a missing resource (exit code 5).
-type ErrNotFound struct{ msg string }
-
-func (e ErrNotFound) Error() string { return e.msg }
-
-// ErrRetryable signals a transient failure (exit code 8).
-type ErrRetryable struct{ msg string }
-
-func (e ErrRetryable) Error() string { return e.msg }
 
 func SetVersion(v, c, d string) {
 	appVersion = v
@@ -68,12 +59,12 @@ func Execute() error {
 
 // ExitCode maps sentinel errors to process exit codes.
 func ExitCode(err error) int {
-	switch err.(type) {
-	case ErrNoResults:
+	switch {
+	case errors.As(err, &ErrNoResults{}):
 		return 3
-	case ErrNotFound:
+	case errors.Is(err, api.ErrNotFound):
 		return 5
-	case ErrRetryable:
+	case errors.Is(err, api.ErrRetryable):
 		return 8
 	default:
 		return 1
@@ -153,58 +144,87 @@ func init() {
 
 // --- front ---
 
-var frontNum int
+var (
+	frontNum  int
+	frontFeed string
+)
 
 var frontCmd = &cobra.Command{
 	Use:     "front",
 	Aliases: []string{"f"},
-	Short:   "Current front page stories",
+	Short:   "Stories in site rank order",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		result, err := client().Search(api.SearchOptions{
-			Tags:       "front_page",
-			NumResults: frontNum,
-		})
+		result, err := client().Feed(frontFeed, frontNum)
 		if err != nil {
 			return err
+		}
+
+		if len(result.Hits) == 0 {
+			return ErrNoResults{}
 		}
 
 		if jsonOutput {
 			return output.JSON(result)
 		}
-		output.FormatFrontPage(os.Stdout, result)
+		output.FormatFeed(os.Stdout, result, frontFeed)
 		return nil
 	},
 }
 
 func init() {
 	frontCmd.Flags().IntVarP(&frontNum, "num", "n", 30, "Number of stories")
+	frontCmd.Flags().StringVar(&frontFeed, "feed", "top", "Feed: "+strings.Join(api.FeedNames(), ", "))
 }
 
 // --- read ---
 
-var readExpand bool
+var (
+	readNum      int
+	readReplies  int
+	readDepth    int
+	readMaxChars int
+	readExpand   bool
+)
 
 var readCmd = &cobra.Command{
 	Use:     "read ID",
 	Aliases: []string{"r"},
-	Short:   "Read a story with comments",
-	Args:    cobra.ExactArgs(1),
+	Short:   "Read a story or comment with its top comments",
+	Long: `Read a story or comment with its comments in site rank order. The output is
+capped to fit an agent's context, and names what it leaves out. Comment IDs
+open a collapsed thread: hn read COMMENT_ID.
+
+--json returns the whole tree in rank order and ignores the caps.`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		item, err := client().GetItem(args[0])
 		if err != nil {
-			return ErrNotFound{msg: err.Error()}
+			return err
+		}
+
+		opts := output.ReadOptions{Num: readNum, Replies: readReplies, Depth: readDepth, MaxChars: readMaxChars}
+		if readExpand {
+			opts = output.ReadOptions{Replies: -1, Depth: -1}
+		}
+
+		if err := client().RankComments(item, opts.Num); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: comments are oldest first: %v\n", err)
 		}
 
 		if jsonOutput {
 			return output.JSON(item)
 		}
-		output.FormatItem(os.Stdout, item, readExpand)
+		output.FormatItem(os.Stdout, item, opts)
 		return nil
 	},
 }
 
 func init() {
-	readCmd.Flags().BoolVar(&readExpand, "expand", false, "Show all comments expanded")
+	readCmd.Flags().IntVarP(&readNum, "num", "n", 20, "Top comments to show, 0 for all")
+	readCmd.Flags().IntVar(&readReplies, "replies", 3, "Replies to show per comment")
+	readCmd.Flags().IntVar(&readDepth, "depth", 1, "Levels of replies to show")
+	readCmd.Flags().IntVar(&readMaxChars, "max-chars", 800, "Characters per comment, 0 for no cap")
+	readCmd.Flags().BoolVar(&readExpand, "expand", false, "Show every comment in full")
 }
 
 // --- user ---
@@ -217,7 +237,7 @@ var userCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		user, err := client().GetUser(args[0])
 		if err != nil {
-			return ErrNotFound{msg: err.Error()}
+			return err
 		}
 
 		if jsonOutput {
@@ -237,9 +257,11 @@ var statusCmd = &cobra.Command{
 		latency, err := client().HealthCheck()
 		if err != nil {
 			if jsonOutput {
-				return output.JSON(map[string]any{"status": "error", "error": err.Error()})
+				if jsonErr := output.JSON(map[string]any{"status": "error", "error": err.Error()}); jsonErr != nil {
+					return jsonErr
+				}
 			}
-			return ErrRetryable{msg: fmt.Sprintf("HN API: DOWN (%v)", err)}
+			return fmt.Errorf("HN API: DOWN (%w)", err)
 		}
 
 		if jsonOutput {

@@ -13,7 +13,7 @@ Agent-friendly CLI for [Hacker News](https://news.ycombinator.com) via the [Algo
 
 - **Fast** — direct Algolia API, no scraping or HTML parsing
 - **Agent-friendly** — `--json` on every command, structured exit codes, stderr-only progress
-- **Zero config** — no API keys, no auth, no rate limits
+- **Zero config** — no API keys, no auth
 - **Single binary** — install via Homebrew, Scoop, or `go install`
 
 <p align="center">
@@ -41,8 +41,8 @@ $ hn front -n 3
 3. [145pts  53c] The death of microservices  @mfiguiere  6h ago
    https://example.com/microservices
 
-$ hn read 43163011 --json | jq '.comments | length'
-963
+$ hn read 43163011 --json | jq '.children | length'
+412
 ```
 
 Run `hn --help` for the full command tree.
@@ -87,13 +87,22 @@ hn search "Go vs Rust" --comments
 # Recent stories sorted by date
 hn search "WASM" --sort date --after 2026-01-01
 
-# Current front page
+# Current front page, in site rank order
 hn front
 
-# Read a story with comments (3 levels deep)
+# Other feeds: new, best, ask, show, job
+hn front --feed show -n 10
+
+# Read a story with its top comments
 hn read 43163011
 
-# Read with all comments expanded
+# Open a collapsed thread by comment ID
+hn read 43163150
+
+# Fewer comments, shorter
+hn read 43163011 -n 5 --replies 1 --max-chars 300
+
+# Read every comment in full
 hn read 43163011 --expand
 
 # User profile
@@ -113,7 +122,7 @@ npx skills add -g voska/hn-cli
 
 ## API
 
-Uses the [HN Algolia API](https://hn.algolia.com/api/v1/) -- free, public, no authentication or API keys required.
+Uses the [HN Algolia API](https://hn.algolia.com/api/v1/) for search and threads, and the [official Firebase API](https://github.com/HackerNews/API) for site ranking and user profiles. Both are free and public, with no authentication or API keys required.
 
 ## Output Modes
 
@@ -127,8 +136,8 @@ Uses the [HN Algolia API](https://hn.algolia.com/api/v1/) -- free, public, no au
 | Command | Alias | Description |
 |---------|-------|-------------|
 | `search <query>` | `s` | Search stories or comments |
-| `front` | `f` | Current front page stories |
-| `read <id>` | `r` | Story with threaded comments |
+| `front` | `f` | Stories in site rank order, from any feed |
+| `read <id>` | `r` | Story or comment with its top comments |
 | `user <username>` | `u` | User profile and karma |
 | `status` | | API health check with latency |
 | `version` | | Version, commit, build date |
@@ -143,7 +152,7 @@ All commands support `--json`.
 | 1 | error | General error |
 | 3 | empty | No results found |
 | 5 | not_found | Invalid ID or username |
-| 8 | retryable | Transient error, safe to retry |
+| 8 | retryable | Network failure, rate limit or server error, safe to retry |
 
 ## Development
 

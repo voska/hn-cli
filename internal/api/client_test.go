@@ -2,11 +2,20 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 )
+
+// testClient points both APIs at srv.
+func testClient(srv *httptest.Server) *Client {
+	c := NewClient(srv.URL, srv.Client())
+	c.firebaseURL = srv.URL
+	return c
+}
 
 func TestBuildURL(t *testing.T) {
 	c := NewClient("https://example.com/api/v1", http.DefaultClient)
@@ -70,7 +79,7 @@ func TestSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, srv.Client())
+	c := testClient(srv)
 	result, err := c.Search(SearchOptions{Query: "test"})
 	if err != nil {
 		t.Fatalf("Search() error: %v", err)
@@ -93,7 +102,7 @@ func TestGetItem(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, srv.Client())
+	c := testClient(srv)
 
 	item, err := c.GetItem("123")
 	if err != nil {
@@ -111,27 +120,170 @@ func TestGetItem(t *testing.T) {
 
 func TestGetUser(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/users/pg" {
-			json.NewEncoder(w).Encode(User{Username: "pg", Karma: 157316})
+		if r.URL.Path == "/user/pg.json" {
+			w.Write([]byte(`{"id":"pg","karma":157316,"about":"Bug fixer."}`))
 			return
 		}
-		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("null"))
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, srv.Client())
+	c := testClient(srv)
 
 	user, err := c.GetUser("pg")
 	if err != nil {
 		t.Fatalf("GetUser() error: %v", err)
 	}
-	if user.Username != "pg" {
-		t.Errorf("expected username 'pg', got %q", user.Username)
+	if user.Username != "pg" || user.Karma != 157316 || user.About != "Bug fixer." {
+		t.Errorf("unexpected user: %+v", user)
 	}
 
 	_, err = c.GetUser("nonexistent_user_xyz")
-	if err == nil {
-		t.Error("expected error for missing user")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound for missing user, got %v", err)
+	}
+}
+
+func TestErrorClassification(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		want   error
+	}{
+		{"not found", http.StatusNotFound, ErrNotFound},
+		{"rate limited", http.StatusTooManyRequests, ErrRetryable},
+		{"server error", http.StatusBadGateway, ErrRetryable},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.status)
+			}))
+			defer srv.Close()
+
+			c := testClient(srv)
+			if _, err := c.GetItem("1"); !errors.Is(err, tt.want) {
+				t.Errorf("GetItem() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestNetworkFailureIsRetryable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+
+	c := NewClient(url, http.DefaultClient)
+	c.firebaseURL = url
+	if _, err := c.GetItem("1"); !errors.Is(err, ErrRetryable) {
+		t.Errorf("GetItem() error = %v, want ErrRetryable", err)
+	}
+	if _, err := c.Search(SearchOptions{Query: "go"}); !errors.Is(err, ErrRetryable) {
+		t.Errorf("Search() error = %v, want ErrRetryable", err)
+	}
+}
+
+func TestClientErrorIsNotRetryable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	c := testClient(srv)
+	if _, err := c.Search(SearchOptions{Query: "go"}); err == nil || errors.Is(err, ErrRetryable) {
+		t.Errorf("Search() error = %v, want a non-retryable error", err)
+	}
+}
+
+func TestFeed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/topstories.json":
+			w.Write([]byte("[30,10,20,40,50]"))
+		case "/search":
+			if got := r.URL.Query().Get("tags"); got != "(story,job),(story_30,story_10,story_20,story_40)" {
+				t.Errorf("tags = %q", got)
+			}
+			json.NewEncoder(w).Encode(SearchResult{Hits: []Hit{
+				{ObjectID: "10", Title: "ten"},
+				{ObjectID: "30", Title: "thirty"},
+			}})
+		case "/item/20.json":
+			w.Write([]byte(`{"id":20,"type":"job","title":"twenty","by":"yc","score":1,"time":1700000000}`))
+		case "/item/40.json":
+			w.Write([]byte(`{"id":40,"dead":true,"title":"forty"}`))
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := testClient(srv)
+	result, err := c.Feed("top", 4)
+	if err != nil {
+		t.Fatalf("Feed() error: %v", err)
+	}
+
+	var titles []string
+	for _, hit := range result.Hits {
+		titles = append(titles, hit.Title)
+	}
+	if want := []string{"thirty", "ten", "twenty"}; !slices.Equal(titles, want) {
+		t.Errorf("titles = %v, want %v", titles, want)
+	}
+	if result.Hits[2].CreatedAt != "2023-11-14T22:13:20Z" {
+		t.Errorf("CreatedAt = %q", result.Hits[2].CreatedAt)
+	}
+}
+
+func TestFeedUnknown(t *testing.T) {
+	c := NewClient("", http.DefaultClient)
+	if _, err := c.Feed("nope", 1); err == nil {
+		t.Error("expected error for unknown feed")
+	}
+}
+
+func TestRankComments(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/item/1.json":
+			w.Write([]byte(`{"id":1,"kids":[4,2]}`))
+		case "/item/4.json":
+			w.Write([]byte(`{"id":4,"kids":[6,5]}`))
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	item := &Item{ID: 1, Children: []Item{
+		{ID: 2, Children: []Item{{ID: 8}, {ID: 7}}},
+		{ID: 3},
+		{ID: 4, Children: []Item{{ID: 5}, {ID: 6}}},
+	}}
+
+	c := testClient(srv)
+	if err := c.RankComments(item, 1); err != nil {
+		t.Fatalf("RankComments() error: %v", err)
+	}
+
+	ids := func(items []Item) []int {
+		var out []int
+		for _, it := range items {
+			out = append(out, it.ID)
+		}
+		return out
+	}
+	if got, want := ids(item.Children), []int{4, 2, 3}; !slices.Equal(got, want) {
+		t.Errorf("comments = %v, want %v", got, want)
+	}
+	if got, want := ids(item.Children[0].Children), []int{6, 5}; !slices.Equal(got, want) {
+		t.Errorf("ranked replies = %v, want %v", got, want)
+	}
+	if got, want := ids(item.Children[1].Children), []int{8, 7}; !slices.Equal(got, want) {
+		t.Errorf("replies past n = %v, want %v", got, want)
 	}
 }
 

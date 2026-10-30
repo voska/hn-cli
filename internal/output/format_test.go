@@ -48,6 +48,79 @@ func TestFormatSearchResults(t *testing.T) {
 	}
 }
 
+func TestFormatItemCaps(t *testing.T) {
+	story := &api.Item{
+		ID:     1,
+		Title:  "Story",
+		Author: "pg",
+		Children: []api.Item{
+			{ID: 2, Author: "a", Text: "first", Children: []api.Item{
+				{ID: 3, Author: "b", Text: "reply one", Children: []api.Item{{ID: 4, Author: "c", Text: "deep"}}},
+				{ID: 5, Author: "d", Text: "reply two"},
+				{ID: 6, Author: "e", Text: "reply three"},
+			}},
+			{ID: 7, Author: "f", Text: strings.Repeat("é", 20)},
+			{ID: 8, Author: "g", Text: "hidden", Children: []api.Item{{ID: 9, Author: "h", Text: "hidden too"}}},
+		},
+	}
+
+	var buf strings.Builder
+	FormatItem(&buf, story, ReadOptions{Num: 2, Replies: 1, Depth: 1, MaxChars: 10})
+	out := buf.String()
+
+	for _, want := range []string{
+		"--- 8 comments ---",
+		"@a  ",
+		"#2\n",
+		"reply one",
+		"[1 more replies]",
+		"[2 more replies]",
+		strings.Repeat("é", 10) + "... [+10 chars]",
+		"[2 more comments]",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in output:\n%s", want, out)
+		}
+	}
+	for _, unwanted := range []string{"deep", "reply two", "hidden"} {
+		if strings.Contains(out, unwanted) {
+			t.Errorf("did not expect %q in output:\n%s", unwanted, out)
+		}
+	}
+}
+
+func TestFormatItemExpanded(t *testing.T) {
+	story := &api.Item{ID: 1, Title: "Story", Children: []api.Item{
+		{ID: 2, Author: "a", Text: "one", Children: []api.Item{
+			{ID: 3, Author: "b", Text: "two", Children: []api.Item{{ID: 4, Author: "c", Text: "three"}}},
+		}},
+	}}
+
+	var buf strings.Builder
+	FormatItem(&buf, story, ReadOptions{Replies: -1, Depth: -1})
+	out := buf.String()
+
+	if !strings.Contains(out, "three") || strings.Contains(out, "more") {
+		t.Errorf("expected the full thread, got:\n%s", out)
+	}
+}
+
+func TestFormatFeed(t *testing.T) {
+	result := &api.SearchResult{Hits: []api.Hit{{ObjectID: "1", Title: "Launch"}}}
+
+	var buf strings.Builder
+	FormatFeed(&buf, result, "top")
+	if !strings.Contains(buf.String(), "Front page (1 stories):") {
+		t.Errorf("unexpected header: %q", buf.String())
+	}
+
+	buf.Reset()
+	FormatFeed(&buf, result, "show")
+	if !strings.Contains(buf.String(), "Feed show (1 stories):") {
+		t.Errorf("unexpected header: %q", buf.String())
+	}
+}
+
 func TestFormatUser(t *testing.T) {
 	user := &api.User{
 		Username: "pg",
