@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"net/http"
@@ -11,26 +12,62 @@ import (
 	"time"
 )
 
-// BaseURL is the default HN Algolia API endpoint.
-const BaseURL = "https://hn.algolia.com/api/v1"
+const (
+	// BaseURL is the default HN Algolia API endpoint.
+	BaseURL = "https://hn.algolia.com/api/v1"
+	// FirebaseURL is the default official HN API endpoint.
+	FirebaseURL = "https://hacker-news.firebaseio.com/v0"
+)
 
-// Client wraps an HTTP client and base URL for the HN Algolia API.
+var (
+	// ErrNotFound means the requested item or user does not exist.
+	ErrNotFound = errors.New("not found")
+	// ErrRetryable means a network failure, rate limit or server error.
+	ErrRetryable = errors.New("temporary failure")
+)
+
+// Client wraps an HTTP client and base URLs for the HN APIs.
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL     string
+	firebaseURL string
+	httpClient  *http.Client
 }
 
 // NewClient returns a Client configured with the given base URL and HTTP client.
 func NewClient(baseURL string, httpClient *http.Client) *Client {
 	return &Client{
-		baseURL:    baseURL,
-		httpClient: httpClient,
+		baseURL:     baseURL,
+		firebaseURL: FirebaseURL,
+		httpClient:  httpClient,
 	}
 }
 
-// DefaultClient returns a Client using the production API and a 15s timeout.
+// DefaultClient returns a Client using the production APIs and a 15s timeout.
 func DefaultClient() *Client {
 	return NewClient(BaseURL, &http.Client{Timeout: 15 * time.Second})
+}
+
+// getJSON fetches reqURL and decodes the response into v.
+func (c *Client) getJSON(reqURL string, v any) error {
+	resp, err := c.httpClient.Get(reqURL)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrRetryable, err)
+	}
+	defer resp.Body.Close()
+
+	switch {
+	case resp.StatusCode == http.StatusNotFound:
+		return ErrNotFound
+	case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500:
+		return fmt.Errorf("%w: api returned %d", ErrRetryable, resp.StatusCode)
+	case resp.StatusCode != http.StatusOK:
+		return fmt.Errorf("api returned %d", resp.StatusCode)
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+		return fmt.Errorf("decode failed: %w", err)
+	}
+	return nil
 }
 
 // SearchResult represents the Algolia search response.
@@ -126,68 +163,38 @@ func (c *Client) BuildURL(opts SearchOptions) string {
 
 // Search queries the HN Algolia search API.
 func (c *Client) Search(opts SearchOptions) (*SearchResult, error) {
-	reqURL := c.BuildURL(opts)
-	resp, err := c.httpClient.Get(reqURL)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("api returned %d", resp.StatusCode)
-	}
-
 	var result SearchResult
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode failed: %w", err)
+	if err := c.getJSON(c.BuildURL(opts), &result); err != nil {
+		return nil, err
 	}
 	return &result, nil
 }
 
 // GetItem fetches a single item (story/comment) with its children.
 func (c *Client) GetItem(id string) (*Item, error) {
-	reqURL := fmt.Sprintf("%s/items/%s", c.baseURL, id)
-	resp, err := c.httpClient.Get(reqURL)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("item %s not found", id)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("api returned %d", resp.StatusCode)
-	}
-
 	var item Item
-	if err := json.NewDecoder(resp.Body).Decode(&item); err != nil {
-		return nil, fmt.Errorf("decode failed: %w", err)
+	if err := c.getJSON(fmt.Sprintf("%s/items/%s", c.baseURL, url.PathEscape(id)), &item); err != nil {
+		return nil, fmt.Errorf("item %s: %w", id, err)
 	}
 	return &item, nil
 }
 
-// GetUser fetches a user profile.
+// GetUser fetches a user profile. It uses the Firebase API because Algolia
+// answers 500 for unknown users, which looks like an outage.
 func (c *Client) GetUser(username string) (*User, error) {
-	reqURL := fmt.Sprintf("%s/users/%s", c.baseURL, url.PathEscape(username))
-	resp, err := c.httpClient.Get(reqURL)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+	var profile *struct {
+		ID    string `json:"id"`
+		About string `json:"about"`
+		Karma int    `json:"karma"`
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("user %q not found", username)
+	reqURL := fmt.Sprintf("%s/user/%s.json", c.firebaseURL, url.PathEscape(username))
+	if err := c.getJSON(reqURL, &profile); err != nil {
+		return nil, fmt.Errorf("user %s: %w", username, err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("api returned %d", resp.StatusCode)
+	if profile == nil {
+		return nil, fmt.Errorf("user %s: %w", username, ErrNotFound)
 	}
-
-	var user User
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return nil, fmt.Errorf("decode failed: %w", err)
-	}
-	return &user, nil
+	return &User{Username: profile.ID, About: profile.About, Karma: profile.Karma}, nil
 }
 
 // HealthCheck pings the API and returns latency.
@@ -195,13 +202,13 @@ func (c *Client) HealthCheck() (time.Duration, error) {
 	start := time.Now()
 	resp, err := c.httpClient.Get(c.baseURL + "/search?query=test&hitsPerPage=0")
 	if err != nil {
-		return 0, fmt.Errorf("api unreachable: %w", err)
+		return 0, fmt.Errorf("%w: %v", ErrRetryable, err)
 	}
 	defer resp.Body.Close()
 	elapsed := time.Since(start)
 
 	if resp.StatusCode != http.StatusOK {
-		return elapsed, fmt.Errorf("api returned %d", resp.StatusCode)
+		return elapsed, fmt.Errorf("%w: api returned %d", ErrRetryable, resp.StatusCode)
 	}
 	return elapsed, nil
 }

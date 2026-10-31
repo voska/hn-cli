@@ -15,7 +15,7 @@ Go CLI for Hacker News via the Algolia API. No auth required.
 
 - `cmd/hn/main.go` -- thin entrypoint, version embedding via ldflags
 - `internal/cmd/root.go` -- all CLI commands (cobra)
-- `internal/api/client.go` -- HN Algolia API client
+- `internal/api/client.go` -- HN Algolia and Firebase API client
 - `internal/output/format.go` -- compact plaintext and JSON formatters
 - `skills/hn/SKILL.md` -- agent skill definition
 
@@ -28,4 +28,5 @@ Go CLI for Hacker News via the Algolia API. No auth required.
 
 ## API
 
-HN Algolia API at `https://hn.algolia.com/api/v1/`. Free, no auth, no rate limits.
+HN Algolia API at `https://hn.algolia.com/api/v1/`, and the official Firebase API
+at `https://hacker-news.firebaseio.com/v0/` for what Algolia lacks. Free, no auth.
