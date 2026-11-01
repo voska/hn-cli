@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -24,16 +25,6 @@ var (
 type ErrNoResults struct{}
 
 func (e ErrNoResults) Error() string { return "no results" }
-
-// ErrNotFound signals a missing resource (exit code 5).
-type ErrNotFound struct{ msg string }
-
-func (e ErrNotFound) Error() string { return e.msg }
-
-// ErrRetryable signals a transient failure (exit code 8).
-type ErrRetryable struct{ msg string }
-
-func (e ErrRetryable) Error() string { return e.msg }
 
 func SetVersion(v, c, d string) {
 	appVersion = v
@@ -68,12 +59,12 @@ func Execute() error {
 
 // ExitCode maps sentinel errors to process exit codes.
 func ExitCode(err error) int {
-	switch err.(type) {
-	case ErrNoResults:
+	switch {
+	case errors.As(err, &ErrNoResults{}):
 		return 3
-	case ErrNotFound:
+	case errors.Is(err, api.ErrNotFound):
 		return 5
-	case ErrRetryable:
+	case errors.Is(err, api.ErrRetryable):
 		return 8
 	default:
 		return 1
@@ -168,6 +159,10 @@ var frontCmd = &cobra.Command{
 			return err
 		}
 
+		if len(result.Hits) == 0 {
+			return ErrNoResults{}
+		}
+
 		if jsonOutput {
 			return output.JSON(result)
 		}
@@ -192,7 +187,7 @@ var readCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		item, err := client().GetItem(args[0])
 		if err != nil {
-			return ErrNotFound{msg: err.Error()}
+			return err
 		}
 
 		if jsonOutput {
@@ -217,7 +212,7 @@ var userCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		user, err := client().GetUser(args[0])
 		if err != nil {
-			return ErrNotFound{msg: err.Error()}
+			return err
 		}
 
 		if jsonOutput {
@@ -237,9 +232,11 @@ var statusCmd = &cobra.Command{
 		latency, err := client().HealthCheck()
 		if err != nil {
 			if jsonOutput {
-				return output.JSON(map[string]any{"status": "error", "error": err.Error()})
+				if jsonErr := output.JSON(map[string]any{"status": "error", "error": err.Error()}); jsonErr != nil {
+					return jsonErr
+				}
 			}
-			return ErrRetryable{msg: fmt.Sprintf("HN API: DOWN (%v)", err)}
+			return fmt.Errorf("HN API: DOWN (%w)", err)
 		}
 
 		if jsonOutput {

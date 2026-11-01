@@ -2,11 +2,19 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
+
+// testClient points both APIs at srv.
+func testClient(srv *httptest.Server) *Client {
+	c := NewClient(srv.URL, srv.Client())
+	c.firebaseURL = srv.URL
+	return c
+}
 
 func TestBuildURL(t *testing.T) {
 	c := NewClient("https://example.com/api/v1", http.DefaultClient)
@@ -70,7 +78,7 @@ func TestSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, srv.Client())
+	c := testClient(srv)
 	result, err := c.Search(SearchOptions{Query: "test"})
 	if err != nil {
 		t.Fatalf("Search() error: %v", err)
@@ -93,7 +101,7 @@ func TestGetItem(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, srv.Client())
+	c := testClient(srv)
 
 	item, err := c.GetItem("123")
 	if err != nil {
@@ -111,27 +119,80 @@ func TestGetItem(t *testing.T) {
 
 func TestGetUser(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/users/pg" {
-			json.NewEncoder(w).Encode(User{Username: "pg", Karma: 157316})
+		if r.URL.Path == "/user/pg.json" {
+			w.Write([]byte(`{"id":"pg","karma":157316,"about":"Bug fixer."}`))
 			return
 		}
-		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("null"))
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, srv.Client())
+	c := testClient(srv)
 
 	user, err := c.GetUser("pg")
 	if err != nil {
 		t.Fatalf("GetUser() error: %v", err)
 	}
-	if user.Username != "pg" {
-		t.Errorf("expected username 'pg', got %q", user.Username)
+	if user.Username != "pg" || user.Karma != 157316 || user.About != "Bug fixer." {
+		t.Errorf("unexpected user: %+v", user)
 	}
 
 	_, err = c.GetUser("nonexistent_user_xyz")
-	if err == nil {
-		t.Error("expected error for missing user")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound for missing user, got %v", err)
+	}
+}
+
+func TestErrorClassification(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		want   error
+	}{
+		{"not found", http.StatusNotFound, ErrNotFound},
+		{"rate limited", http.StatusTooManyRequests, ErrRetryable},
+		{"server error", http.StatusBadGateway, ErrRetryable},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.status)
+			}))
+			defer srv.Close()
+
+			c := testClient(srv)
+			if _, err := c.GetItem("1"); !errors.Is(err, tt.want) {
+				t.Errorf("GetItem() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestNetworkFailureIsRetryable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+
+	c := NewClient(url, http.DefaultClient)
+	c.firebaseURL = url
+	if _, err := c.GetItem("1"); !errors.Is(err, ErrRetryable) {
+		t.Errorf("GetItem() error = %v, want ErrRetryable", err)
+	}
+	if _, err := c.Search(SearchOptions{Query: "go"}); !errors.Is(err, ErrRetryable) {
+		t.Errorf("Search() error = %v, want ErrRetryable", err)
+	}
+}
+
+func TestClientErrorIsNotRetryable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	c := testClient(srv)
+	if _, err := c.Search(SearchOptions{Query: "go"}); err == nil || errors.Is(err, ErrRetryable) {
+		t.Errorf("Search() error = %v, want a non-retryable error", err)
 	}
 }
 

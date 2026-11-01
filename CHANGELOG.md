@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Anything older than a day shows its date, not "3mo ago".
 
 ### Fixed
+- Exit codes now match the docs. Network failures, rate limits and server
+  errors exit 8, missing items and users exit 5, and an empty `hn front` exits 3.
+- `hn status --json` exits 8 when the API is down.
+- `hn user` looks profiles up through the Firebase API, because Algolia answers
+  500 for unknown users.
 - Links appear once, with their full URL. They printed twice, the second time
   shortened.
 - Escaped markup in comments stays literal: `&lt;p&gt;` prints as `<p>`, not a

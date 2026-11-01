@@ -13,7 +13,7 @@ Agent-friendly CLI for [Hacker News](https://news.ycombinator.com) via the [Algo
 
 - **Fast** — direct Algolia API, no scraping or HTML parsing
 - **Agent-friendly** — `--json` on every command, structured exit codes, stderr-only progress
-- **Zero config** — no API keys, no auth, no rate limits
+- **Zero config** — no API keys, no auth
 - **Single binary** — install via Homebrew, Scoop, or `go install`
 
 <p align="center">
@@ -113,7 +113,7 @@ npx skills add -g voska/hn-cli
 
 ## API
 
-Uses the [HN Algolia API](https://hn.algolia.com/api/v1/) -- free, public, no authentication or API keys required.
+Uses the [HN Algolia API](https://hn.algolia.com/api/v1/) for search and threads, and the [official Firebase API](https://github.com/HackerNews/API) for user profiles. Both are free and public, with no authentication or API keys required.
 
 ## Output Modes
 
@@ -143,7 +143,7 @@ All commands support `--json`.
 | 1 | error | General error |
 | 3 | empty | No results found |
 | 5 | not_found | Invalid ID or username |
-| 8 | retryable | Transient error, safe to retry |
+| 8 | retryable | Network failure, rate limit or server error, safe to retry |
 
 ## Development
 
