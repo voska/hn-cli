@@ -20,7 +20,13 @@ hn search "query" --comments         # Search comments instead
 hn search "query" --sort date        # Sort by date (default: relevance)
 hn search "query" -n 10              # Limit results
 hn search "query" --after 2026-01-01 # Only results after date
+hn search "query" --before 2026-02-01 # Only results before date
 hn search "query" --min-points 100   # Minimum points filter
+hn search "query" --tag show_hn      # show_hn, ask_hn or front_page
+hn search "query" --by USERNAME      # Only this author
+hn search "example.com" --url        # Match story URLs only
+hn search "query" --page 1           # Next page, starting at 0
+hn search --tag show_hn --sort date  # The query is optional
 
 hn front                             # Current front page stories
 hn front -n 10                       # Fewer results

@@ -87,6 +87,19 @@ hn search "Go vs Rust" --comments
 # Recent stories sorted by date
 hn search "WASM" --sort date --after 2026-01-01
 
+# Search one kind of post, or one author
+hn search "database" --tag show_hn
+hn search "scheduling" --by dang --comments
+
+# Browse with filters alone, inside a date range
+hn search --tag ask_hn --min-points 200 --after 2026-01-01 --before 2026-02-01
+
+# Has this site or URL been discussed?
+hn search "github.com/voska" --url
+
+# Next page of results
+hn search "WASM" --page 1
+
 # Current front page
 hn front
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `hn search` flags `--tag`, `--by`, `--before`, `--url` and `--page`. The query
+  is now optional, so filters alone can browse.
+
 ### Changed
 - Anything older than a day shows its date, not "3mo ago".
 
@@ -20,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shortened.
 - Escaped markup in comments stays literal: `&lt;p&gt;` prints as `<p>`, not a
   line break.
+- `--min-points N` includes stories with exactly N points.
 
 ## [0.2.1] — 2026-08-08
 
