@@ -13,7 +13,7 @@ Agent-friendly CLI for [Hacker News](https://news.ycombinator.com) via the [Algo
 
 - **Fast** — direct Algolia API, no scraping or HTML parsing
 - **Agent-friendly** — `--json` on every command, structured exit codes, stderr-only progress
-- **Zero config** — no API keys, no auth, no rate limits
+- **Zero config** — no API keys, no auth
 - **Single binary** — install via Homebrew, Scoop, or `go install`
 
 <p align="center">
@@ -23,13 +23,13 @@ Agent-friendly CLI for [Hacker News](https://news.ycombinator.com) via the [Algo
 ```bash
 $ hn search "local LLMs" -n 3
 5632 results:
-1. [2127pts 963c] Running Local LLMs Is a Waste of Time  @dang  3mo ago
+1. [2127pts 963c] Running Local LLMs Is a Waste of Time  @dang  2026-01-14
    https://example.com/local-llms
    HN: https://news.ycombinator.com/item?id=43163011
-2. [891pts 412c] Ollama: Run LLMs Locally  @thunderbong  8mo ago
+2. [891pts 412c] Ollama: Run LLMs Locally  @thunderbong  2025-08-02
    https://ollama.ai
    HN: https://news.ycombinator.com/item?id=42591244
-3. [654pts 287c] How I Run LLMs on a Raspberry Pi  @tosh  1y ago
+3. [654pts 287c] How I Run LLMs on a Raspberry Pi  @tosh  2025-04-11
    https://example.com/rpi-llms
    HN: https://news.ycombinator.com/item?id=41023547
 
@@ -126,7 +126,7 @@ npx skills add -g voska/hn-cli
 
 ## API
 
-Uses the [HN Algolia API](https://hn.algolia.com/api/v1/) -- free, public, no authentication or API keys required.
+Uses the [HN Algolia API](https://hn.algolia.com/api/v1/) for search and threads, and the [official Firebase API](https://github.com/HackerNews/API) for user profiles. Both are free and public, with no authentication or API keys required.
 
 ## Output Modes
 
@@ -156,7 +156,7 @@ All commands support `--json`.
 | 1 | error | General error |
 | 3 | empty | No results found |
 | 5 | not_found | Invalid ID or username |
-| 8 | retryable | Transient error, safe to retry |
+| 8 | retryable | Network failure, rate limit or server error, safe to retry |
 
 ## Development
 
