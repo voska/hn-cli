@@ -157,8 +157,9 @@ func countComments(children []api.Item) int {
 	return count
 }
 
-// timeAgo parses an HN timestamp and returns a human-readable relative time.
-// The Algolia API returns RFC 3339 from search endpoints but uses a
+// timeAgo parses an HN timestamp and returns a relative time within the last
+// day and the date before that, which stays meaningful outside the current
+// moment. The Algolia API returns RFC 3339 from search endpoints but uses a
 // millisecond-precision variant (2006-01-02T15:04:05.000Z) from item endpoints,
 // so both formats must be attempted.
 func timeAgo(created string) string {
@@ -178,11 +179,7 @@ func timeAgo(created string) string {
 		return fmt.Sprintf("%dm ago", int(d.Minutes()))
 	case d < 24*time.Hour:
 		return fmt.Sprintf("%dh ago", int(d.Hours()))
-	case d < 30*24*time.Hour:
-		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
-	case d < 365*24*time.Hour:
-		return fmt.Sprintf("%dmo ago", int(d.Hours()/(24*30)))
 	default:
-		return fmt.Sprintf("%dy ago", int(d.Hours()/(24*365)))
+		return t.UTC().Format("2006-01-02")
 	}
 }

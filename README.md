@@ -23,13 +23,13 @@ Agent-friendly CLI for [Hacker News](https://news.ycombinator.com) via the [Algo
 ```bash
 $ hn search "local LLMs" -n 3
 5632 results:
-1. [2127pts 963c] Running Local LLMs Is a Waste of Time  @dang  3mo ago
+1. [2127pts 963c] Running Local LLMs Is a Waste of Time  @dang  2026-01-14
    https://example.com/local-llms
    HN: https://news.ycombinator.com/item?id=43163011
-2. [891pts 412c] Ollama: Run LLMs Locally  @thunderbong  8mo ago
+2. [891pts 412c] Ollama: Run LLMs Locally  @thunderbong  2025-08-02
    https://ollama.ai
    HN: https://news.ycombinator.com/item?id=42591244
-3. [654pts 287c] How I Run LLMs on a Raspberry Pi  @tosh  1y ago
+3. [654pts 287c] How I Run LLMs on a Raspberry Pi  @tosh  2025-04-11
    https://example.com/rpi-llms
    HN: https://news.ycombinator.com/item?id=41023547
 
