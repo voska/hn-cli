@@ -139,7 +139,7 @@ Uses the [HN Algolia API](https://hn.algolia.com/api/v1/) for search and threads
 
 | Command | Alias | Description |
 |---------|-------|-------------|
-| `search <query>` | `s` | Search stories or comments |
+| `search [query]` | `s` | Search stories or comments |
 | `front` | `f` | Current front page stories |
 | `read <id>` | `r` | Story with threaded comments |
 | `user <username>` | `u` | User profile and karma |
