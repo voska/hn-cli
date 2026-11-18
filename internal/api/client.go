@@ -292,16 +292,20 @@ func (c *Client) Feed(feed string, n int) (*SearchResult, error) {
 // fillMissing adds to found the ids it lacks, looked up on Firebase. Dead and
 // deleted items stay out.
 func (c *Client) fillMissing(ids []int, found map[string]Hit) error {
+	var missing []int
+	for _, id := range ids {
+		if _, ok := found[strconv.Itoa(id)]; !ok {
+			missing = append(missing, id)
+		}
+	}
+
 	var (
 		wg       sync.WaitGroup
 		mu       sync.Mutex
 		firstErr error
 		slots    = make(chan struct{}, maxConcurrent)
 	)
-	for _, id := range ids {
-		if _, ok := found[strconv.Itoa(id)]; ok {
-			continue
-		}
+	for _, id := range missing {
 		wg.Add(1)
 		slots <- struct{}{}
 		go func() {
