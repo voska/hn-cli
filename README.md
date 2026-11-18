@@ -23,13 +23,13 @@ Agent-friendly CLI for [Hacker News](https://news.ycombinator.com) via the [Algo
 ```bash
 $ hn search "local LLMs" -n 3
 5632 results:
-1. [2127pts 963c] Running Local LLMs Is a Waste of Time  @dang  3mo ago
+1. [2127pts 963c] Running Local LLMs Is a Waste of Time  @dang  2026-01-14
    https://example.com/local-llms
    HN: https://news.ycombinator.com/item?id=43163011
-2. [891pts 412c] Ollama: Run LLMs Locally  @thunderbong  8mo ago
+2. [891pts 412c] Ollama: Run LLMs Locally  @thunderbong  2025-08-02
    https://ollama.ai
    HN: https://news.ycombinator.com/item?id=42591244
-3. [654pts 287c] How I Run LLMs on a Raspberry Pi  @tosh  1y ago
+3. [654pts 287c] How I Run LLMs on a Raspberry Pi  @tosh  2025-04-11
    https://example.com/rpi-llms
    HN: https://news.ycombinator.com/item?id=41023547
 
@@ -87,6 +87,19 @@ hn search "Go vs Rust" --comments
 # Recent stories sorted by date
 hn search "WASM" --sort date --after 2026-01-01
 
+# Search one kind of post, or one author
+hn search "database" --tag show_hn
+hn search "scheduling" --by dang --comments
+
+# Browse with filters alone, inside a date range
+hn search --tag ask_hn --min-points 200 --after 2026-01-01 --before 2026-02-01
+
+# Has this site or URL been discussed?
+hn search "github.com/voska" --url
+
+# Next page of results
+hn search "WASM" --page 1
+
 # Current front page, in site rank order
 hn front
 
@@ -135,7 +148,7 @@ Uses the [HN Algolia API](https://hn.algolia.com/api/v1/) for search and threads
 
 | Command | Alias | Description |
 |---------|-------|-------------|
-| `search <query>` | `s` | Search stories or comments |
+| `search [query]` | `s` | Search stories or comments |
 | `front` | `f` | Stories in site rank order, from any feed |
 | `read <id>` | `r` | Story or comment with its top comments |
 | `user <username>` | `u` | User profile and karma |

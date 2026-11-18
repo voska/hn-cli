@@ -7,6 +7,7 @@ import (
 	"html"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -171,7 +172,10 @@ type SearchOptions struct {
 	Tags       string
 	SortByDate bool
 	NumResults int
+	Page       int
+	URLOnly    bool
 	AfterTime  *time.Time
+	BeforeTime *time.Time
 	MinPoints  int
 }
 
@@ -193,12 +197,22 @@ func (c *Client) BuildURL(opts SearchOptions) string {
 		params.Set("hitsPerPage", strconv.Itoa(opts.NumResults))
 	}
 
+	if opts.Page > 0 {
+		params.Set("page", strconv.Itoa(opts.Page))
+	}
+	if opts.URLOnly {
+		params.Set("restrictSearchableAttributes", "url")
+	}
+
 	var numericFilters []string
 	if opts.AfterTime != nil {
 		numericFilters = append(numericFilters, fmt.Sprintf("created_at_i>%d", opts.AfterTime.Unix()))
 	}
+	if opts.BeforeTime != nil {
+		numericFilters = append(numericFilters, fmt.Sprintf("created_at_i<%d", opts.BeforeTime.Unix()))
+	}
 	if opts.MinPoints > 0 {
-		numericFilters = append(numericFilters, fmt.Sprintf("points>%d", opts.MinPoints))
+		numericFilters = append(numericFilters, fmt.Sprintf("points>=%d", opts.MinPoints))
 	}
 	if len(numericFilters) > 0 {
 		params.Set("numericFilters", strings.Join(numericFilters, ","))
@@ -426,9 +440,14 @@ func (c *Client) HealthCheck() (time.Duration, error) {
 	return elapsed, nil
 }
 
-// CleanHTML strips HTML entities and basic tags from HN text.
+// linkTag matches HN's auto-linked URLs, which repeat the URL as a shortened
+// link text.
+var linkTag = regexp.MustCompile(`<a href="([^"]*)"[^>]*>.*?</a>`)
+
+// CleanHTML strips HTML entities and basic tags from HN text. Entities are
+// decoded last so that escaped markup in a comment stays literal.
 func CleanHTML(s string) string {
-	s = html.UnescapeString(s)
+	s = linkTag.ReplaceAllString(s, "$1")
 	s = strings.ReplaceAll(s, "<p>", "\n")
 	s = strings.ReplaceAll(s, "</p>", "")
 	s = strings.ReplaceAll(s, "<i>", "")
@@ -439,8 +458,5 @@ func CleanHTML(s string) string {
 	s = strings.ReplaceAll(s, "</code></pre>", "\n```\n")
 	s = strings.ReplaceAll(s, "<code>", "`")
 	s = strings.ReplaceAll(s, "</code>", "`")
-	s = strings.ReplaceAll(s, "<a href=\"", "")
-	s = strings.ReplaceAll(s, "\" rel=\"nofollow\">", " ")
-	s = strings.ReplaceAll(s, "</a>", "")
-	return strings.TrimSpace(s)
+	return strings.TrimSpace(html.UnescapeString(s))
 }

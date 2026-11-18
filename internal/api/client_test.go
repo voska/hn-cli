@@ -43,7 +43,17 @@ func TestBuildURL(t *testing.T) {
 		{
 			name: "with min points",
 			opts: SearchOptions{Query: "go", Tags: "story", MinPoints: 100},
-			want: "https://example.com/api/v1/search?numericFilters=points%3E100&query=go&tags=story",
+			want: "https://example.com/api/v1/search?numericFilters=points%3E%3D100&query=go&tags=story",
+		},
+		{
+			name: "with page",
+			opts: SearchOptions{Query: "go", Tags: "story", Page: 2},
+			want: "https://example.com/api/v1/search?page=2&query=go&tags=story",
+		},
+		{
+			name: "url only",
+			opts: SearchOptions{Query: "example.com", Tags: "story", URLOnly: true},
+			want: "https://example.com/api/v1/search?query=example.com&restrictSearchableAttributes=url&tags=story",
 		},
 	}
 
@@ -67,6 +77,17 @@ func TestBuildURLWithAfterTime(t *testing.T) {
 	}
 	if !contains(got, "numericFilters=") {
 		t.Errorf("expected numericFilters in URL, got %q", got)
+	}
+}
+
+func TestBuildURLDateWindow(t *testing.T) {
+	c := NewClient("https://example.com/api/v1", http.DefaultClient)
+	after := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	before := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	got := c.BuildURL(SearchOptions{AfterTime: &after, BeforeTime: &before})
+	want := "https://example.com/api/v1/search?numericFilters=created_at_i%3E1767225600%2Ccreated_at_i%3C1769904000"
+	if got != want {
+		t.Errorf("BuildURL() = %q, want %q", got, want)
 	}
 }
 
@@ -299,6 +320,12 @@ func TestCleanHTML(t *testing.T) {
 		{"inline code", "use <code>go run</code> here", "use `go run` here"},
 		{"html entities", "this &amp; that &lt; those", "this & that < those"},
 		{"empty string", "", ""},
+		{"escaped markup stays", "use &lt;p&gt; and &lt;code&gt;", "use <p> and <code>"},
+		{
+			"auto-linked url",
+			`see <a href="https:&#x2F;&#x2F;example.com&#x2F;a&#x2F;very&#x2F;long" rel="nofollow">https:&#x2F;&#x2F;example.com&#x2F;a&#x2F;ve...</a> now`,
+			"see https://example.com/a/very/long now",
+		},
 	}
 
 	for _, tt := range tests {
