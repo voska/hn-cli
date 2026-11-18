@@ -226,7 +226,8 @@ var readCmd = &cobra.Command{
 capped to fit an agent's context, and names what it leaves out. Comment IDs
 open a collapsed thread: hn read COMMENT_ID.
 
---json returns the whole tree in rank order and ignores the caps.`,
+--json returns the whole tree and ignores the caps. Only top-level comments
+and the direct replies of the first -n comments are in rank order.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		item, err := client().GetItem(args[0])
