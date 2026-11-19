@@ -39,10 +39,7 @@ func formatStory(w io.Writer, n int, hit api.Hit) {
 
 func formatComment(w io.Writer, n int, hit api.Hit) {
 	ago := timeAgo(hit.CreatedAt)
-	text := api.CleanHTML(hit.CommentText)
-	if len(text) > 200 {
-		text = text[:200] + "..."
-	}
+	text := truncate(api.CleanHTML(hit.CommentText), 200)
 	text = strings.ReplaceAll(text, "\n", " ")
 
 	storyTitle := hit.StoryTitle
@@ -54,28 +51,42 @@ func formatComment(w io.Writer, n int, hit api.Hit) {
 	fmt.Fprintf(w, "   HN: https://news.ycombinator.com/item?id=%s\n", hit.ObjectID)
 }
 
-// FormatFrontPage prints front page stories in compact plaintext.
-func FormatFrontPage(w io.Writer, result *api.SearchResult) {
+// FormatFeed prints a story feed in compact plaintext.
+func FormatFeed(w io.Writer, result *api.SearchResult, feed string) {
 	if len(result.Hits) == 0 {
-		fmt.Fprintln(w, "No stories on front page.")
+		fmt.Fprintln(w, "No stories.")
 		return
 	}
 
-	fmt.Fprintf(w, "Front page (%d stories):\n", len(result.Hits))
+	title := "Front page"
+	if feed != "top" {
+		title = "Feed " + feed
+	}
+	fmt.Fprintf(w, "%s (%d stories):\n", title, len(result.Hits))
 	for i, hit := range result.Hits {
 		formatStory(w, i+1, hit)
 	}
 }
 
-// FormatItem prints a story with its comments.
-func FormatItem(w io.Writer, item *api.Item, expand bool) {
+// ReadOptions caps the comments FormatItem prints.
+type ReadOptions struct {
+	Num      int // top comments, 0 for all
+	Replies  int // replies per comment, negative for all
+	Depth    int // levels of replies, negative for all
+	MaxChars int // characters per comment, 0 for no cap
+}
+
+// FormatItem prints a story or comment with its comments.
+func FormatItem(w io.Writer, item *api.Item, opts ReadOptions) {
 	pts := 0
 	if item.Points != nil {
 		pts = *item.Points
 	}
 	ago := timeAgo(item.CreatedAt)
 
-	fmt.Fprintf(w, "%s\n", item.Title)
+	if item.Title != "" {
+		fmt.Fprintf(w, "%s\n", item.Title)
+	}
 	fmt.Fprintf(w, "@%s  %dpts  %s\n", item.Author, pts, ago)
 	if item.URL != "" {
 		fmt.Fprintf(w, "%s\n", item.URL)
@@ -93,11 +104,11 @@ func FormatItem(w io.Writer, item *api.Item, expand bool) {
 	}
 
 	fmt.Fprintf(w, "\n--- %d comments ---\n", commentCount)
-	if expand {
-		printComments(w, item.Children, 0, -1)
-	} else {
-		printComments(w, item.Children, 0, 3)
+	limit := opts.Num
+	if limit <= 0 {
+		limit = -1
 	}
+	printComments(w, item.Children, 0, limit, opts)
 }
 
 // FormatUser prints user profile in compact plaintext.
@@ -116,34 +127,48 @@ func JSON(v any) error {
 	return enc.Encode(v)
 }
 
-func printComments(w io.Writer, children []api.Item, depth int, maxDepth int) {
-	if maxDepth >= 0 && depth > maxDepth {
-		return
-	}
-
+func printComments(w io.Writer, children []api.Item, depth, limit int, opts ReadOptions) {
 	indent := strings.Repeat("  ", depth)
-	for _, c := range children {
+
+	shown := 0
+	for i, c := range children {
 		if c.Author == "" && c.Text == "" {
 			continue
 		}
+		if limit >= 0 && shown == limit {
+			noun := "replies"
+			if depth == 0 {
+				noun = "comments"
+			}
+			fmt.Fprintf(w, "%s[%d more %s]\n", indent, countComments(children[i:]), noun)
+			return
+		}
+		shown++
+
 		ago := timeAgo(c.CreatedAt)
-		fmt.Fprintf(w, "%s@%s  %s\n", indent, c.Author, ago)
-		text := api.CleanHTML(c.Text)
+		fmt.Fprintf(w, "%s@%s  %s  #%d\n", indent, c.Author, ago, c.ID)
+		text := truncate(api.CleanHTML(c.Text), opts.MaxChars)
 		for _, line := range strings.Split(text, "\n") {
 			fmt.Fprintf(w, "%s  %s\n", indent, line)
 		}
 
-		if len(c.Children) > 0 {
-			if maxDepth >= 0 && depth+1 > maxDepth {
-				collapsed := countComments(c.Children)
-				if collapsed > 0 {
-					fmt.Fprintf(w, "%s  [%d more replies]\n", indent, collapsed)
-				}
-			} else {
-				printComments(w, c.Children, depth+1, maxDepth)
+		if opts.Depth >= 0 && depth >= opts.Depth {
+			if collapsed := countComments(c.Children); collapsed > 0 {
+				fmt.Fprintf(w, "%s  [%d more replies]\n", indent, collapsed)
 			}
+			continue
 		}
+		printComments(w, c.Children, depth+1, opts.Replies, opts)
 	}
+}
+
+// truncate caps s at maxChars characters and says how many it dropped.
+func truncate(s string, maxChars int) string {
+	runes := []rune(s)
+	if maxChars <= 0 || len(runes) <= maxChars {
+		return s
+	}
+	return fmt.Sprintf("%s... [+%d chars]", string(runes[:maxChars]), len(runes)-maxChars)
 }
 
 func countComments(children []api.Item) int {

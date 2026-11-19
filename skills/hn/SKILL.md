@@ -28,11 +28,15 @@ hn search "example.com" --url        # Match story URLs only
 hn search "query" --page 1           # Next page, starting at 0
 hn search --tag show_hn --sort date  # The query is optional
 
-hn front                             # Current front page stories
+hn front                             # Front page in site rank order
 hn front -n 10                       # Fewer results
+hn front --feed show                 # top, new, best, ask, show or job
 
-hn read ID                           # Read story + top comments
-hn read ID --expand                  # All comments expanded
+hn read ID                           # Story + top comments, capped
+hn read ID -n 5 --replies 1          # Fewer comments
+hn read ID --max-chars 300           # Shorter comments
+hn read COMMENT_ID                   # Open a collapsed thread
+hn read ID --expand                  # Every comment in full
 
 hn user USERNAME                     # User profile and karma
 
@@ -47,7 +51,9 @@ Aliases: `hn s` = `hn search`, `hn f` = `hn front`, `hn r` = `hn read`, `hn u` =
 1. Search or browse front page: `hn search "topic" -n 5` or `hn front`
 2. Note the item ID from the HN URL in results
 3. Read the full story + comments: `hn read ID`
-4. Expand all comments if needed: `hn read ID --expand`
+4. Open a thread with `hn read COMMENT_ID`, using the `#ID` on any comment
+5. Use `--expand` only when you need the whole thread: a big one costs tens of
+   thousands of tokens
 
 ## Output Format
 
@@ -65,8 +71,10 @@ to files -- never use `--json` in LLM context.
 
 ### Read output
 
-Full story title, metadata, URL, body text, and threaded comments with author
-and timestamps. Top 3 levels by default, `--expand` for all.
+Full story title, metadata, URL, body text, and comments in site rank order
+with author, timestamp and `#ID`. By default 20 comments, 3 replies each, one
+level of replies and 800 characters per comment. Cuts show as `[N more replies]`,
+`[N more comments]` and `[+N chars]`.
 
 ### User output
 
